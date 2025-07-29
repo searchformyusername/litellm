@@ -1187,3 +1187,54 @@ async def test_embedding_with_extra_headers(sync_mode):
 
         mock_post.assert_called_once()
         assert "my-test-param" in mock_post.call_args.kwargs["headers"]
+
+
+@pytest.mark.parametrize("provider", ["hosted_vllm", "openai_like"])
+@pytest.mark.parametrize("sync_mode", [True, False])
+@pytest.mark.asyncio
+async def test_hosted_vllm_openai_like_embedding_extra_headers(provider, sync_mode, monkeypatch):
+    """Test that extra_headers are passed through for hosted_vllm and openai_like providers"""
+    
+    if provider == "hosted_vllm":
+        monkeypatch.setenv("HOSTED_VLLM_API_BASE", "http://localhost:8000")
+        model = "hosted_vllm/jina-embeddings-v3"
+    else:  # openai_like
+        monkeypatch.setenv("OPENAI_LIKE_API_BASE", "http://localhost:8000")
+        model = "openai_like/jina-embeddings-v3"
+    
+    from litellm.llms.custom_httpx.http_handler import HTTPHandler, AsyncHTTPHandler
+
+    if sync_mode:
+        client = HTTPHandler()
+    else:
+        client = AsyncHTTPHandler()
+
+    input_text = ["Hello world"]
+    extra_headers = {"my-test-header": "test-value", "custom-auth": "bearer-token"}
+    
+    data = {
+        "model": model,
+        "input": input_text,
+        "extra_headers": extra_headers,
+        "client": client,
+    }
+    
+    with patch.object(client, "post") as mock_post:
+        try:
+            if sync_mode:
+                embedding(**data)
+            else:
+                await litellm.aembedding(**data)
+        except Exception as e:
+            print(f"Exception during {provider} embedding call: {e}")
+
+        mock_post.assert_called_once()
+        
+        call_kwargs = mock_post.call_args.kwargs
+        assert "headers" in call_kwargs, f"Headers not found in {provider} embedding call"
+        
+        headers = call_kwargs["headers"]
+        assert "my-test-header" in headers, f"Custom header 'my-test-header' not found in {provider} headers"
+        assert headers["my-test-header"] == "test-value", f"Custom header value mismatch in {provider}"
+        assert "custom-auth" in headers, f"Custom header 'custom-auth' not found in {provider} headers"
+        assert headers["custom-auth"] == "bearer-token", f"Custom auth header value mismatch in {provider}"

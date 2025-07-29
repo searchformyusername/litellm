@@ -3894,6 +3894,11 @@ def embedding(  # noqa: PLR0915
                     or litellm.openai_like_key
                     or get_secret_str("OPENAI_LIKE_API_KEY")
                 )
+            
+            if extra_headers is not None and isinstance(extra_headers, dict):
+                headers = extra_headers
+            else:
+                headers = {}
 
             ## EMBEDDING CALL
             response = openai_like_embedding.embedding(
@@ -3907,6 +3912,7 @@ def embedding(  # noqa: PLR0915
                 optional_params=optional_params,
                 client=client,
                 aembedding=aembedding,
+                headers=headers,
             )
         elif custom_llm_provider == "cohere" or custom_llm_provider == "cohere_chat":
             cohere_key = (
